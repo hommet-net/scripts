@@ -95,6 +95,12 @@ REGISTRY_PASSWORD='...' ./talos-airgap.sh push --registry harbor.lan --registry-
 ./talos-airgap.sh push --registry 10.0.0.5:5000 --insecure
 ```
 
+**HTTPS registry with a self-signed certificate** and no CA file at hand (prefer `--registry-ca` when you have it):
+
+```bash
+./talos-airgap.sh push --registry reg.lan:5000 --tls-skip-verify
+```
+
 ## What to carry: `--mode`
 
 | Mode | Bundle contains | Use when |
@@ -130,7 +136,8 @@ Images keep their upstream registry as a path:
 rewriting.
 
 `push` writes `machine-patch.yaml`: one `RegistryMirrorConfig` per upstream registry and, with `--registry-ca` or
-`--insecure`, a `RegistryTLSConfig`. Use it when generating the machine configuration:
+`--tls-skip-verify`, a `RegistryTLSConfig`. `--insecure` (HTTP) writes `http://` endpoints and cannot be combined
+with `--tls-skip-verify` or `--registry-ca`. Use it when generating the machine configuration:
 
 ```bash
 talosctl gen config my-cluster https://10.0.0.10:6443 --config-patch @bundle/machine-patch.yaml

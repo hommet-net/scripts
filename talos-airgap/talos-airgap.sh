@@ -66,7 +66,8 @@ push options:
   --registry HOST[:PORT]      destination registry (required)
   --registry-prefix PATH      e.g. "mirror" -> HOST/mirror/ghcr.io/...
   --registry-ca FILE          CA certificate of the registry
-  --insecure                  plain HTTP / no TLS verification
+  --insecure                  registry over plain HTTP (http:// mirrors)
+  --tls-skip-verify           registry over HTTPS, certificate not verified (self-signed, no CA at hand)
   --registry-user USER        password read from $REGISTRY_PASSWORD
   --bundle DIR                default: the script directory if it is a bundle, else ./bundle
 EOF
@@ -324,9 +325,9 @@ write_patch() {
       printf -- '---\napiVersion: v1alpha1\nkind: RegistryMirrorConfig\nname: %s\nendpoints:\n  - url: %s://%s/v2/%s%s\n    overridePath: true\n' \
         "$u" "$scheme" "$REGISTRY" "$prefix" "$u"
     done
-    if [[ -n $REGISTRY_CA || -n $INSECURE ]]; then
+    if [[ -n $REGISTRY_CA || -n $SKIP_VERIFY ]]; then
       printf -- '---\napiVersion: v1alpha1\nkind: RegistryTLSConfig\nname: %s\n' "$REGISTRY"
-      [[ -z $INSECURE ]] || echo "insecureSkipVerify: true"
+      [[ -z $SKIP_VERIFY ]] || echo "insecureSkipVerify: true"
       [[ -z $REGISTRY_CA ]] || { echo "ca: |-"; sed 's/^/  /' "$REGISTRY_CA"; }
     fi
   } >"$BUNDLE/machine-patch.yaml"
@@ -344,8 +345,11 @@ cmd_push() {
   # read values, never execute profile.env
   TALOS_VERSION=$(sed -n 's/^TALOS_VERSION=//p' "$BUNDLE/profile.env"); check_version
   [[ -s $BUNDLE/images.txt ]] || die "bundle built with --mode cache: no images to push (boot the ISO, no registry needed)"
+  [[ -z $INSECURE || -z $SKIP_VERIFY ]] || die "--insecure (HTTP) and --tls-skip-verify (HTTPS) are exclusive"
+  [[ -z $INSECURE || -z $REGISTRY_CA ]] || die "--registry-ca makes no sense with --insecure (HTTP)"
   local crane=$BUNDLE/bin/crane flags=()
-  [[ -z $INSECURE ]] || flags+=(--insecure)
+  # crane has a single --insecure switch: it allows HTTP and skips TLS verification
+  [[ -z $INSECURE && -z $SKIP_VERIFY ]] || flags+=(--insecure)
   if [[ -n $REGISTRY_CA ]]; then [[ -r $REGISTRY_CA ]] || die "cannot read $REGISTRY_CA"; export SSL_CERT_FILE=$REGISTRY_CA; fi
   if [[ -n $REGISTRY_USER ]]; then
     [[ -n ${REGISTRY_PASSWORD:-} ]] || die "set REGISTRY_PASSWORD for --registry-user"
@@ -367,13 +371,14 @@ CMD=${1:-}; [[ $# -gt 0 ]] && shift
 case $CMD in fetch|push|help|-h|--help) ;; "") usage 1 ;; *) die "first argument must be 'fetch' or 'push', got '$CMD' (see --help)" ;; esac
 TALOS_VERSION="" K8S_VERSION="" TARGET="" CPU="" GPU=none NVIDIA_DRIVER=open NVIDIA_BRANCH=production
 EXTENSIONS="" KERNEL_ARGS="net.ifnames=0" EXTRA_IMAGES="" EXTRA_FILES="" MODE=both ARCH=amd64 PROXY="" OUT=./bundle
-KARGS=() REGISTRY="" REGISTRY_PREFIX="" REGISTRY_CA="" INSECURE="" REGISTRY_USER="" BUNDLE=./bundle
+KARGS=() REGISTRY="" REGISTRY_PREFIX="" REGISTRY_CA="" INSECURE="" SKIP_VERIFY="" REGISTRY_USER="" BUNDLE=./bundle
 # push run from inside a transferred bundle: default to the script's own directory
 [[ -f "$(dirname "$0")/SHA256SUMS" ]] && BUNDLE=$(dirname "$0")
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --insecure) INSECURE=1; shift; continue ;;
+    --tls-skip-verify) SKIP_VERIFY=1; shift; continue ;;
     -h|--help) usage ;;
   esac
   [[ $# -ge 2 ]] || die "$1 needs a value"

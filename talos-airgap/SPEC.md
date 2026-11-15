@@ -68,7 +68,8 @@ Idempotent: re-running with another profile into the same `--out` adds to it, no
 | `--registry` | required | `reg.lan:5000` |
 | `--registry-prefix` | | e.g. `mirror` → `reg.lan/mirror/ghcr.io/...` (Harbor projects) |
 | `--registry-ca` | | CA PEM: used by crane and written to the Talos patch `tls.ca` |
-| `--insecure` | | plain HTTP / skip verify (crane `--insecure`, `http://` endpoints) |
+| `--insecure` | | plain HTTP registry: crane `--insecure`, `http://` endpoints |
+| `--tls-skip-verify` | | HTTPS registry, certificate not verified: crane `--insecure`, `https://` endpoints + `insecureSkipVerify`. Exclusive with `--insecure` |
 | `--registry-user` | | password from `REGISTRY_PASSWORD` env, never a flag |
 | `--bundle` | `./bundle` | |
 

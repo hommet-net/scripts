@@ -15,11 +15,11 @@ need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 # HTTPS only, modern TLS, retry transient errors.
 dl() { curl -fsSL --proto '=https' --tlsv1.2 --retry 3 "$@"; }
 
-# Temp dirs are removed on any exit, including errors.
-TMPDIRS=()
-mktmp() { local d; d=$(mktemp -d); TMPDIRS+=("$d"); echo "$d"; }
-cleanup() { [[ ${#TMPDIRS[@]} -eq 0 ]] || rm -rf "${TMPDIRS[@]}"; }
-trap cleanup EXIT
+# One temp root created in the main shell, removed on any exit (mktmp runs in $(...) subshells,
+# so it must not track state itself).
+TMPROOT=$(mktemp -d)
+trap 'rm -rf "$TMPROOT"' EXIT
+mktmp() { mktemp -d "$TMPROOT/XXXXXX"; }
 
 # match <value> <regex> <message>: validate an input at the boundary.
 match() { [[ $1 =~ $2 ]] || die "$3: '$1'"; }

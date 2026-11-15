@@ -67,7 +67,12 @@ In a non-interactive context (CI, cron), missing values stop the script with an 
 **Cilium as CNI**: render the chart once, list its images, carry both:
 
 ```bash
+# OCI chart (Helm >= 3.8, no repo to add)
+helm template cilium oci://quay.io/cilium/charts/cilium --version 1.20.1 -n kube-system -f values.yaml > cilium.yaml
+# or the classic Helm repository
+helm repo add cilium https://helm.cilium.io/
 helm template cilium cilium/cilium --version 1.20.1 -n kube-system -f values.yaml > cilium.yaml
+
 grep -oE 'image: *"?[^" ]+' cilium.yaml | sed -E 's/image: *"?//' | sort -u > cilium-images.txt
 
 ./talos-airgap.sh fetch --talos-version 1.13.10 --target vm \
